@@ -29,4 +29,5 @@ test("key parsing", () => {
   assert.deepEqual(parseKeys("\x1b[A\x1b[B\x1b[C\x1b[Dq"), ["up", "down", "right", "left", "q"]);
   assert.deepEqual(parseKeys("\x1b[5~\x1b[6~\x1b"), ["pageup", "pagedown", "escape"]);
   assert.deepEqual(parseKeys("\x1b[1;5Ca"), ["a"]);
+  assert.deepEqual(parseKeys("\x1b[1;2D\x1b[1;2C"), ["shift-left", "shift-right"]);
 });

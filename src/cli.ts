@@ -34,7 +34,7 @@ Keys
   Enter/Space  open or fold the focused message, step group or step
   e / c        open / fold every step group in the column
   /            search the column (n older, N newer, Esc clear)
-  < / >        move column   1-9 jump to column   p picker   u usage   r reconnect   q quit
+  ⇧←/⇧→, < / > move column   1-9 jump to column   p picker   u usage   r reconnect   q quit
   Vim-style h/j/k/l, b/f (page), Tab/Shift-Tab (column) and ,/. (move column) also work.
 
 Read-only: t3-watch uses a token limited to "orchestration:read" and only subscribes to

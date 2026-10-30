@@ -62,7 +62,8 @@ underneath. User messages are marked with `▌`. Replies and plans are rendered 
 | `/` | search the column; `n` older match, `N` newer, `Esc` clear |
 | `PgUp` `PgDn`, `g` `G` | page, jump to top / bottom |
 | `a` | follow new output again (`A` for all columns) |
-| `<` `>`, `1`–`9` | move column, jump to column |
+| `Shift`+`←` `→` (or `<` `>`) | move the selected column left / right |
+| `1`–`9` | jump to column |
 | `p`, `u`, `r`, `q` | thread picker, toggle usage, reconnect, quit |
 
 Columns follow new output until you move up, then stay put (`↓12 · a follow`). Search looks

@@ -76,7 +76,9 @@ interface Search {
 const MIN_COLUMN_WIDTH = 26;
 const PROVIDER_PAINT = (id: string | undefined) => (id === "codex" ? "codex" : id === "claudeAgent" ? "claude" : "header");
 
-type KeyName = "up" | "down" | "left" | "right" | "pageup" | "pagedown" | "home" | "end" | "shift-tab" | "escape";
+type KeyName =
+  | "up" | "down" | "left" | "right" | "shift-left" | "shift-right"
+  | "pageup" | "pagedown" | "home" | "end" | "shift-tab" | "escape";
 
 const ESCAPES: Array<[string, KeyName]> = [
   ["\x1b[A", "up"], ["\x1bOA", "up"], ["\x1b[B", "down"], ["\x1bOB", "down"],
@@ -85,6 +87,8 @@ const ESCAPES: Array<[string, KeyName]> = [
   ["\x1b[H", "home"], ["\x1b[1~", "home"], ["\x1bOH", "home"], ["\x1b[7~", "home"],
   ["\x1b[F", "end"], ["\x1b[4~", "end"], ["\x1bOF", "end"], ["\x1b[8~", "end"],
   ["\x1b[Z", "shift-tab"],
+  // Shift+←/→ (xterm, iTerm2, Terminal.app, kitty).
+  ["\x1b[1;2D", "shift-left"], ["\x1b[1;2C", "shift-right"], ["\x1b[2D", "shift-left"], ["\x1b[2C", "shift-right"],
 ];
 
 /** Splits a raw stdin chunk into key names and printable characters. */
@@ -416,9 +420,11 @@ export class Dashboard {
         if (this.search) this.foldBack(this.search);
         this.search = undefined;
         return;
+      case "shift-left":
       case "<":
       case ",":
         return this.moveColumn(-1);
+      case "shift-right":
       case ">":
       case ".":
         return this.moveColumn(1);
@@ -950,7 +956,7 @@ export class Dashboard {
     if (this.notice && Date.now() - this.notice.at < 8_000) parts.push([` · ${label(this.notice.text)}`, this.notice.tone]);
     const used = parts.reduce((n, [t]) => n + textWidth(t), 0);
     const hints = [
-      "←→ column  ↑↓ move  ⏎ open/fold  e/c all  / search  a follow  p pick  u usage  r reconnect  q quit",
+      "←→ column  ⇧←→ reorder  ↑↓ move  ⏎ open/fold  / search  a follow  p pick  u usage  q quit",
       "←→ ↑↓ ⏎ / a p q",
     ].find((h) => used + textWidth(h) + 2 <= width);
     if (!hints) return cell(parts, width);
