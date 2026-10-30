@@ -4,7 +4,7 @@ import {
   isVisible,
   itemSearchText,
   layoutBlocks,
-  messageBlocks,
+  messageRows,
   stepDetail,
   stepFailed,
   stepKind,
@@ -150,7 +150,7 @@ export class Transcript {
 
   private messageRows(item: TurnItem, width: number, seen: Set<string>): Row[] {
     const expanded = this.isExpanded({ key: item.id, kind: "message" });
-    const rows = this.cachedRows(item, `${width}|${expanded}`, seen, () => layoutBlocks(messageBlocks(item), width));
+    const rows = this.cachedRows(item, `${width}|${expanded}`, seen, () => messageRows(item, width));
     if (expanded || rows.length <= COLLAPSED_MESSAGE_ROWS + 1) return rows;
     return [...rows.slice(0, COLLAPSED_MESSAGE_ROWS), { text: `  … ${rows.length - COLLAPSED_MESSAGE_ROWS} more lines`, style: "dim" }];
   }

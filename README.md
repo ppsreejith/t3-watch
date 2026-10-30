@@ -45,7 +45,8 @@ as other conversations become active, and `--no-usage` hides the usage column. S
 
 Thinking and tool calls between two messages are folded into one line, such as
 `▸ 6 steps · shell ×3 · Read ×2 · thinking`. The step that is currently running is shown
-underneath. User messages are marked with `▌`.
+underneath. User messages are marked with `▌`. Replies and plans are rendered as Markdown
+(headings, bold/italic, code, lists, quotes and tables).
 
 | Key | Action |
 | --- | --- |

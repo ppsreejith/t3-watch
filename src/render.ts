@@ -31,10 +31,26 @@ export const PAINT: Record<string, string> = {
   match: `\x1b[30;48;5;221m`,
   matchCurrent: `\x1b[1;97;48;5;161m`,
   cursor: "\x1b[7m",
+  // Markdown
+  h1: `\x1b[1;4m${fg(183)}`,
+  h2: `\x1b[1m${fg(183)}`,
+  h3: `\x1b[1m${fg(146)}`,
+  strong: "\x1b[1m",
+  em: "\x1b[3m",
+  del: "\x1b[9m",
+  code: `${fg(180)}\x1b[48;5;236m`,
+  codeBlock: `${fg(252)}\x1b[48;5;235m`,
+  link: `\x1b[4m${fg(75)}`,
+  bullet: fg(75),
+  quote: fg(246),
+  rule: fg(240),
+  th: "\x1b[1m",
+  tableBorder: fg(240),
 };
 
+/** Paints `text`; a "+"-joined key (nested Markdown such as "strong+link") combines styles. */
 export const paint = (text: string, key: string): string => {
-  const code = PAINT[key];
+  const code = key.includes("+") ? key.split("+").map((k) => PAINT[k] ?? "").join("") : PAINT[key];
   return code && text ? `${code}${text}${RESET}` : text;
 };
 
@@ -65,18 +81,30 @@ export function cell(parts: Part[], width: number): string {
 /** One cell of left padding inside every pane. */
 export const padded = (parts: Part[], width: number): string => (width <= 0 ? "" : ` ${cell(parts, width - 1)}`);
 
-/** Splits a row so search hits are painted; the hit starting at `currentAt` is the active one. */
-export function highlight(text: string, style: string, query: SearchQuery | undefined, currentAt = -1): Part[] {
-  if (!query?.text) return [[text, style]];
-  const offsets = hitOffsets(text, query);
-  if (offsets.length === 0) return [[text, style]];
-  const parts: Part[] = [];
-  let from = 0;
-  for (const at of offsets) {
-    if (at > from) parts.push([text.slice(from, at), style]);
-    parts.push([text.slice(at, at + query.text.length), at === currentAt ? "matchCurrent" : "match"]);
-    from = at + query.text.length;
+/**
+ * Overlays search hits on a row's styled parts; the hit starting at `currentAt` (an offset into
+ * the row's text) is painted as the active one. Hits may span several parts.
+ */
+export function highlight(parts: Part[], query: SearchQuery | undefined, currentAt = -1): Part[] {
+  if (!query?.text) return parts;
+  const text = parts.map((p) => p[0]).join("");
+  const hits = hitOffsets(text, query);
+  if (hits.length === 0) return parts;
+  const styleAt = (offset: number): string | undefined => {
+    for (const at of hits) if (offset >= at && offset < at + query.text.length) return at === currentAt ? "matchCurrent" : "match";
+    return undefined;
+  };
+  const out: Part[] = [];
+  let offset = 0;
+  for (const [partText, partStyle] of parts) {
+    // Split each part at hit boundaries, then merge neighbours with the same style.
+    for (const char of partText) {
+      const style = styleAt(offset) ?? partStyle;
+      const last = out[out.length - 1];
+      if (last && last[1] === style) last[0] += char;
+      else out.push([char, style]);
+      offset += char.length;
+    }
   }
-  if (from < text.length) parts.push([text.slice(from), style]);
-  return parts;
+  return out;
 }

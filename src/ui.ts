@@ -835,7 +835,7 @@ export class Dashboard {
           continue;
         }
         const focused = isSelected && row.entry >= 0 && row.entry === focus;
-        const parts = highlight(row.text, row.style, query, currentHit && currentHit.row === top + i ? currentHit.at : -1);
+        const parts = highlight(row.parts ?? [[row.text, row.style]], query, currentHit && currentHit.row === top + i ? currentHit.at : -1);
         body.push(`${focused ? paint("▎", "marker") : " "}${cell(parts, w - 1)}`);
       }
       bodies.push(body);

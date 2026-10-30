@@ -100,3 +100,77 @@ export function fit(text: string, width: number): string {
 export function clip(text: string, maxChars: number): string {
   return text.length > maxChars ? `${text.slice(0, maxChars)}\n… (${text.length - maxChars} more characters)` : text;
 }
+
+/** A run of text in one paint style (style names may be combined with "+"). */
+export type Span = [text: string, style: string];
+
+/**
+ * Word-wraps styled spans to `width` cells, like `wrapText`, keeping each piece's style.
+ * A "\n" inside a span forces a line break.
+ */
+export function wrapParts(spans: Span[], width: number): Span[][] {
+  const max = Math.max(1, Math.floor(width));
+  const glyphs: Array<{ g: string; w: number; s: string }> = [];
+  for (const [text, style] of spans) {
+    for (const { segment } of segmenter.segment(text)) glyphs.push({ g: segment, w: segment === "\n" ? 0 : graphemeWidth(segment), s: style });
+  }
+  const lines: Array<typeof glyphs> = [];
+  let line: typeof glyphs = [];
+  let lineWidth = 0;
+  let breakAt = -1;
+  let breakWidth = 0;
+  const push = (glyphRow: typeof glyphs) => {
+    let end = glyphRow.length;
+    while (end > 0 && glyphRow[end - 1].g === " ") end--;
+    lines.push(glyphRow.slice(0, end));
+  };
+  for (const glyph of glyphs) {
+    if (glyph.g === "\n") {
+      push(line);
+      line = [];
+      lineWidth = 0;
+      breakAt = -1;
+      continue;
+    }
+    if (lineWidth + glyph.w > max && lineWidth > 0) {
+      if (glyph.g === " ") {
+        push(line);
+        line = [];
+        lineWidth = 0;
+        breakAt = -1;
+        continue;
+      }
+      if (breakAt > 0) {
+        push(line.slice(0, breakAt));
+        line = line.slice(breakAt);
+        lineWidth -= breakWidth;
+      } else {
+        push(line);
+        line = [];
+        lineWidth = 0;
+      }
+      breakAt = -1;
+      if (lineWidth + glyph.w > max && lineWidth > 0) {
+        push(line);
+        line = [];
+        lineWidth = 0;
+      }
+    }
+    line.push(glyph);
+    lineWidth += glyph.w;
+    if (glyph.g === " ") {
+      breakAt = line.length;
+      breakWidth = lineWidth;
+    }
+  }
+  push(line);
+  return lines.map((glyphRow) => {
+    const out: Span[] = [];
+    for (const { g, s } of glyphRow) {
+      const last = out[out.length - 1];
+      if (last && last[1] === s) last[0] += g;
+      else out.push([g, s]);
+    }
+    return out;
+  });
+}

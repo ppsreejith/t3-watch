@@ -1,6 +1,7 @@
 import type { ProviderStatus, ShellThread, TurnItem, UsageWindow } from "./protocol.js";
 import type { ThreadState } from "./store.js";
-import { clip, sanitize, textWidth, wrapText } from "./text.js";
+import { renderMarkdown } from "./markdown.js";
+import { clip, sanitize, textWidth, wrapText, type Span } from "./text.js";
 
 export type Style =
   | "plain"
@@ -27,6 +28,8 @@ export interface Block {
 export interface Row {
   text: string;
   style: Style;
+  /** Styled pieces (Markdown); when absent the whole row paints in `style`. */
+  parts?: Span[];
 }
 
 const MAX_TEXT_CHARS = 40_000;
@@ -293,10 +296,39 @@ const searchCache = new WeakMap<TurnItem, string>();
 export function itemSearchText(item: TurnItem): string {
   let text = searchCache.get(item);
   if (text === undefined) {
-    text = (isMessage(item) ? messageBlocks(item) : stepDetail(item)).map((b) => `${b.prefix}${b.text}`).join("\n");
+    text = MARKDOWN_TYPES.has(item.type)
+      ? messageRows(item, 10_000).map((r) => r.text).join("\n")
+      : (isMessage(item) ? messageBlocks(item) : stepDetail(item)).map((b) => `${b.prefix}${b.text}`).join("\n");
     searchCache.set(item, text);
   }
   return text;
+}
+
+const MARKDOWN_TYPES = new Set(["assistant_message", "proposed_plan"]);
+
+const markdownRows = (source: string, width: number, pad = ""): Row[] =>
+  renderMarkdown(source, width - textWidth(pad)).map((parts) => {
+    const spans: Span[] = pad ? [[pad, "assistant"], ...parts] : parts;
+    return { text: spans.map((s) => s[0]).join(""), style: "assistant", parts: spans };
+  });
+
+/** Rows for a conversation-level item; agent replies and plans are rendered as Markdown. */
+export function messageRows(item: TurnItem, width: number): Row[] {
+  if (item.type === "assistant_message") {
+    const rows = markdownRows(clip(sanitize(str(item.text)).trim(), MAX_TEXT_CHARS), width);
+    if (!item.streaming) return rows;
+    const last = rows[rows.length - 1];
+    if (!last) return [{ text: "… ▍", style: "assistant" }];
+    rows[rows.length - 1] = { ...last, text: `${last.text} ▍`, parts: [...(last.parts ?? []), [" ▍", "assistant"]] };
+    return rows;
+  }
+  if (item.type === "proposed_plan") {
+    return [
+      { text: `☰ Proposed plan${item.streaming ? " ▍" : ""}`, style: "tool" },
+      ...markdownRows(clip(sanitize(str(item.markdown)), MAX_TEXT_CHARS), width, "  "),
+    ];
+  }
+  return layoutBlocks(messageBlocks(item), width);
 }
 
 export function layoutBlocks(blocks: Block[], width: number): Row[] {

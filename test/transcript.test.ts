@@ -58,16 +58,16 @@ test("folded layout is compact, expanding a group shows one line per step, steps
 });
 
 test("long messages fold to three lines", () => {
-  const state = thread([{ id: "a", ordinal: 1, type: "assistant_message", text: "1\n2\n3\n4\n5\n6" }]);
+  const state = thread([{ id: "a", ordinal: 1, type: "assistant_message", text: "- 1\n- 2\n- 3\n- 4\n- 5\n- 6" }]);
   const transcript = new Transcript();
   transcript.toggle({ key: "a", kind: "message" });
-  assert.deepEqual(transcript.layout(state, 40).rows.map((r) => r.text), ["1", "2", "3", "  … 3 more lines"]);
+  assert.deepEqual(transcript.layout(state, 40).rows.map((r) => r.text), ["• 1", "• 2", "• 3", "  … 3 more lines"]);
 });
 
 test("focus moves between entries and scrolls through tall ones line by line", () => {
   const state = thread([
     { id: "a", ordinal: 1, type: "assistant_message", text: "a" },
-    { id: "b", ordinal: 2, type: "assistant_message", text: "b1\nb2\nb3\nb4\nb5" },
+    { id: "b", ordinal: 2, type: "user_message", text: "b1\nb2\nb3\nb4\nb5" },
     { id: "c", ordinal: 3, type: "assistant_message", text: "c" },
   ]);
   const layout = new Transcript().layout(state, 40);
