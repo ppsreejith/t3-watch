@@ -2,18 +2,19 @@ import { METHODS, type ProviderStatus, type ServerConfigStreamItem, type ShellSt
 import type { ConnectionState, RpcClient } from "./rpc.js";
 import { ProvidersState, ShellState, ThreadState } from "./store.js";
 import { label, lastActive, providerLabel, threadActivity, threadStatus, usageLines, type UsageLine } from "./format.js";
-import { isSettled, isSubagent, listThreads, pickThreads, resolveThreadIds, shortId } from "./select.js";
+import { isSettled, isSubagent, listThreads, pickThreads, recentColumns, resolveThreadIds, shortId } from "./select.js";
 import { RESET, PAINT, cell, highlight, padded, paint, type Part } from "./render.js";
 import {
   Transcript,
   entryAt,
+  countHits,
   findMatches,
   foldBack,
   focusIndex,
   makeQuery,
-  matchRow,
   maxTop,
   moveFocus,
+  occurrences,
   reveal,
   revealItem,
   type Layout,
@@ -65,7 +66,9 @@ interface Search {
   origin: { focusKey: string | undefined; top: number; stick: boolean; anchor: number; ordinal: number };
   /** What was unfolded to show the current match; folded back when the match moves or is cleared. */
   revealed: Revealed;
+  /** Item holding the active hit, and which of its visible hits (top to bottom) is active. */
   current: string | undefined;
+  occurrence: number;
   position: number;
   total: number;
 }
@@ -231,18 +234,21 @@ export class Dashboard {
     }
     if (this.repick) {
       this.repick = false;
-      if (this.selection.mode !== "ids") this.applySelection(true);
+      if (this.selection.mode !== "ids") this.applySelection(true, true);
       return;
     }
-    // --all always tracks the active set; recent mode only when following.
-    if (this.selection.mode === "all" || (this.selection.mode === "recent" && this.options.follow)) this.applySelection(true);
+    // Columns T3 settles, archives or deletes drop out live and free slots are refilled; --follow
+    // also swaps columns as activity moves. Explicitly chosen threads (ids, picker) stay put.
+    if (this.selection.mode !== "ids") this.applySelection(true);
   }
 
-  private targetIds(): string[] {
+  private targetIds(refresh = false): string[] {
     const threads = this.shell.threads.values();
     switch (this.selection.mode) {
-      case "recent":
-        return pickThreads(threads, { ...this.listOptions(), count: this.selection.count });
+      case "recent": {
+        const shown = this.columns.map((c) => c.threadId);
+        return recentColumns(shown, pickThreads(threads, this.listOptions()), this.selection.count, refresh || this.options.follow);
+      }
       case "all":
         return pickThreads(threads, this.listOptions());
       case "ids": {
@@ -259,8 +265,8 @@ export class Dashboard {
   }
 
   /** `stable` keeps surviving columns where they are and fills freed slots in place. */
-  private applySelection(stable = false): void {
-    const target = this.targetIds();
+  private applySelection(stable = false, refresh = false): void {
+    const target = this.targetIds(refresh);
     if (!stable) {
       this.setColumns(target);
       return;
@@ -537,6 +543,7 @@ export class Dashboard {
       origin: { focusKey: column.focusKey, top, stick: column.stick, anchor: column.anchor, ordinal },
       revealed: [],
       current: undefined,
+      occurrence: 0,
       position: 0,
       total: 0,
     };
@@ -583,37 +590,73 @@ export class Dashboard {
     Object.assign(search.column, { focusKey, top, stick, anchor });
   }
 
-  /** "origin": nearest match at or above where the search started; "older"/"newer": step from the current one. */
+  /**
+   * n (older) / N (newer) step hit by hit, like less or vim: first through the visible hits of the
+   * current message or step, then on to the next item that matches. "origin" jumps to the hit
+   * nearest above where the search started.
+   */
   private jumpToMatch(direction: "origin" | "older" | "newer"): void {
     const search = this.search!;
     const column = search.column;
     const query = makeQuery(search.query);
-    this.foldBack(search);
     const matches = findMatches(column.state, query);
-    search.total = matches.length;
+    const counts = matches.map((m) => countHits(m, query));
+    search.total = counts.reduce((sum, n) => sum + n, 0);
     if (matches.length === 0) {
+      this.foldBack(search);
       search.current = undefined;
       search.position = 0;
       this.restoreOrigin(search);
       return;
     }
-    let index: number;
-    const current = matches.findIndex((m) => m.id === search.current);
-    if (direction === "origin" || current < 0) {
+    let index = matches.findIndex((m) => m.id === search.current);
+
+    // Another hit in the same item: move the marker, scroll only if it is off screen.
+    if (direction !== "origin" && index >= 0) {
+      const layout = this.layoutOf(column);
+      const entry = layout.index.get(search.current!);
+      const hits = entry === undefined ? [] : occurrences(layout, entry, query);
+      const next = search.occurrence + (direction === "older" ? -1 : 1);
+      if (entry !== undefined && next >= 0 && next < hits.length) {
+        search.occurrence = next;
+        this.showHit(column, layout, entry, hits[next].row);
+        search.position = this.hitPosition(counts, index, next);
+        return;
+      }
+    }
+
+    if (direction === "origin" || index < 0) {
       index = matches.findLastIndex((m) => m.ordinal <= search.origin.ordinal);
       if (index < 0) index = matches.length - 1;
     } else {
-      index = (current + (direction === "older" ? -1 : 1) + matches.length) % matches.length;
+      index = (index + (direction === "older" ? -1 : 1) + matches.length) % matches.length;
     }
+    this.foldBack(search);
     const item = matches[index];
     search.current = item.id;
-    search.position = index + 1;
     search.revealed = revealItem(column.transcript, column.state, item, query);
     const layout = this.layoutOf(column);
-    const focus = focusIndex(layout, item.id);
-    const row = matchRow(layout, focus, query);
-    this.place(column, layout, focus, row - Math.floor(column.height / 3));
+    const entry = focusIndex(layout, item.id);
+    const hits = occurrences(layout, entry, query);
+    search.occurrence = direction === "newer" ? 0 : Math.max(0, hits.length - 1);
+    this.showHit(column, layout, entry, hits[search.occurrence]?.row ?? layout.start[entry]);
+    search.position = this.hitPosition(counts, index, search.occurrence);
   }
+
+  /** 1-based position of a hit among all hits, oldest first. */
+  private hitPosition(counts: number[], index: number, occurrence: number): number {
+    let before = 0;
+    for (let i = 0; i < index; i++) before += counts[i];
+    return before + Math.min(occurrence, counts[index] - 1) + 1;
+  }
+
+  /** Focuses the entry and scrolls only when the hit's row is not already on screen. */
+  private showHit(column: Column, layout: Layout, entry: number, row: number): void {
+    const { top } = this.view(column);
+    const visible = row >= top && row < top + column.height;
+    this.place(column, layout, entry, visible ? top : row - Math.floor(column.height / 3));
+  }
+
 
   // -------------------------------------------------------------------------
   // Picker
@@ -782,7 +825,8 @@ export class Dashboard {
       const query = search ? makeQuery(search.query) : undefined;
       // The active match is the first hit inside the entry n/N last jumped to.
       const currentEntry = search?.current === undefined ? undefined : layout.index.get(search.current);
-      const currentRow = currentEntry === undefined || !query ? -1 : matchRow(layout, currentEntry, query);
+      const currentHits = currentEntry === undefined || !query ? [] : occurrences(layout, currentEntry, query);
+      const currentHit = search && currentHits.length > 0 ? currentHits[Math.min(search.occurrence, currentHits.length - 1)] : undefined;
       const body: string[] = [];
       for (let i = 0; i < bodyHeight; i++) {
         const row = layout.rows[top + i];
@@ -791,7 +835,7 @@ export class Dashboard {
           continue;
         }
         const focused = isSelected && row.entry >= 0 && row.entry === focus;
-        const parts = highlight(row.text, row.style, query, top + i === currentRow);
+        const parts = highlight(row.text, row.style, query, currentHit && currentHit.row === top + i ? currentHit.at : -1);
         body.push(`${focused ? paint("▎", "marker") : " "}${cell(parts, w - 1)}`);
       }
       bodies.push(body);
@@ -902,7 +946,7 @@ export class Dashboard {
     }
     parts.push([" · read-only", "dim"]);
     if (total > visible) parts.push([` · cols ${this.offset + 1}-${this.offset + visible}/${total}`, "info"]);
-    if (this.search) parts.push([` · /${this.search.query}`, "info"], this.searchSummary(this.search), [" n/N · Esc", "dim"]);
+    if (this.search) parts.push([` · /${this.search.query}`, "info"], this.searchSummary(this.search), [" n ↑ · N ↓ · Esc", "dim"]);
     if (this.notice && Date.now() - this.notice.at < 8_000) parts.push([` · ${label(this.notice.text)}`, this.notice.tone]);
     const used = parts.reduce((n, [t]) => n + textWidth(t), 0);
     const hints = [

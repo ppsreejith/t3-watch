@@ -7,7 +7,7 @@ import {
   foldBack,
   focusIndex,
   makeQuery,
-  matchRow,
+  occurrences,
   moveFocus,
   revealItem,
   structure,
@@ -93,7 +93,9 @@ test("search finds text hidden inside folded steps and unfolds just enough to sh
   assert.deepEqual(opened.map((e) => e.key), ["group:r1", "c1"]);
   const layout = transcript.layout(state, 60);
   const i = focusIndex(layout, "c1");
-  assert.match(layout.rows[matchRow(layout, i, query)].text, /<Navbar\/>/);
+  const hits = occurrences(layout, i, query);
+  assert.equal(hits.length, 1);
+  assert.equal(layout.rows[hits[0].row].text.slice(hits[0].at, hits[0].at + 9), "<Navbar/>");
   foldBack(transcript, opened);
   assert.equal(transcript.layout(state, 60).rows[2].text, "▸ 3 steps · thinking · shell · Edit");
   // If the user folds everything in between, folding back must not re-open anything.

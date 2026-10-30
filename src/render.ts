@@ -1,4 +1,4 @@
-import type { SearchQuery } from "./transcript.js";
+import { hitOffsets, type SearchQuery } from "./transcript.js";
 import { fit, textWidth } from "./text.js";
 
 export type Part = [text: string, paint: string];
@@ -65,19 +65,18 @@ export function cell(parts: Part[], width: number): string {
 /** One cell of left padding inside every pane. */
 export const padded = (parts: Part[], width: number): string => (width <= 0 ? "" : ` ${cell(parts, width - 1)}`);
 
-/** Splits a row so search hits are painted as matches; `current` marks the first hit as the active one. */
-export function highlight(text: string, style: string, query: SearchQuery | undefined, current = false): Part[] {
+/** Splits a row so search hits are painted; the hit starting at `currentAt` is the active one. */
+export function highlight(text: string, style: string, query: SearchQuery | undefined, currentAt = -1): Part[] {
   if (!query?.text) return [[text, style]];
-  const haystack = query.caseSensitive ? text : text.toLowerCase();
-  if (haystack.length !== text.length) return [[text, style]];
-  const needle = query.caseSensitive ? query.text : query.text.toLowerCase();
+  const offsets = hitOffsets(text, query);
+  if (offsets.length === 0) return [[text, style]];
   const parts: Part[] = [];
   let from = 0;
-  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + needle.length)) {
+  for (const at of offsets) {
     if (at > from) parts.push([text.slice(from, at), style]);
-    parts.push([text.slice(at, at + needle.length), current && parts.every((p) => p[1] !== "matchCurrent") ? "matchCurrent" : "match"]);
-    from = at + needle.length;
+    parts.push([text.slice(at, at + query.text.length), at === currentAt ? "matchCurrent" : "match"]);
+    from = at + query.text.length;
   }
   if (from < text.length) parts.push([text.slice(from), style]);
-  return parts.length > 0 ? parts : [[text, style]];
+  return parts;
 }

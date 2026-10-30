@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isSettled, pickThreads, resolveThreadIds, shortId } from "../src/select.js";
+import { isSettled, pickThreads, recentColumns, resolveThreadIds, shortId } from "../src/select.js";
 import type { LocatedThread } from "../src/store.js";
 
 const t = (id: string, at: string, extra: Partial<LocatedThread> = {}): LocatedThread => ({
@@ -46,4 +46,15 @@ test("ids resolve by full id, prefix or suffix and keep the given order", () => 
   assert.throws(() => resolveThreadIds(["a"], [t("ab", "x"), t("ac", "x")]), /matches 2 threads/);
   assert.equal(shortId("thread:delegated-task:xyz-ffff9999"), "ffff9999");
   assert.equal(shortId("733d94b5-4417"), "733d94b5");
+});
+
+test("recent columns: settled ones drop out live, freed slots refill, survivors keep their place", () => {
+  // Shown a, b, c; b gets settled (no longer eligible) and d is the next most recent.
+  assert.deepEqual(recentColumns(["a", "b", "c"], ["c", "a", "d", "e"], 3, false), ["a", "c", "d"]);
+  // Nothing changed: order of shown columns is kept even if activity order differs.
+  assert.deepEqual(recentColumns(["a", "b"], ["b", "a", "z"], 2, false), ["a", "b"]);
+  // Refresh (r) or --follow: simply the most recent.
+  assert.deepEqual(recentColumns(["a", "b"], ["z", "b", "a"], 2, true), ["z", "b"]);
+  // A slot frees up when fewer than N were eligible and one becomes active (e.g. unsettled).
+  assert.deepEqual(recentColumns(["a"], ["x", "a"], 3, false), ["a", "x"]);
 });

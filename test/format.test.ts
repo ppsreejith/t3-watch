@@ -84,7 +84,8 @@ test("usage formatting", () => {
 
 test("search highlighting", () => {
   assert.deepEqual(highlight("Fix the Navbar now", "plain", makeQuery("navbar")), [["Fix the ", "plain"], ["Navbar", "match"], [" now", "plain"]]);
-  assert.deepEqual(highlight("a foo foo", "plain", makeQuery("foo"), true).map((p) => p[1]), ["plain", "matchCurrent", "plain", "match"]);
+  assert.deepEqual(highlight("a foo foo", "plain", makeQuery("foo"), 2).map((p) => p[1]), ["plain", "matchCurrent", "plain", "match"]);
+  assert.deepEqual(highlight("a foo foo", "plain", makeQuery("foo"), 6).map((p) => p[1]), ["plain", "match", "plain", "matchCurrent"]);
   assert.deepEqual(highlight("İstanbul foo", "plain", makeQuery("foo")), [["İstanbul foo", "plain"]], "no misplaced highlight");
   assert.equal(sanitize("ok\x9b31m"), "ok31m", "C1 controls are stripped");
 });

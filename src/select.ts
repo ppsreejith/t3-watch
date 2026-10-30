@@ -58,6 +58,16 @@ export function pickThreads(threads: Iterable<LocatedThread>, options: ListOptio
   return (options.count === undefined ? listed : listed.slice(0, Math.max(0, options.count))).map((t) => t.id);
 }
 
+/**
+ * Next set of "most recent" columns. With `refresh` the most recent `count` win; otherwise shown
+ * threads stay while still eligible and freed slots are topped up from the most recent others.
+ */
+export function recentColumns(shown: string[], eligible: string[], count: number, refresh: boolean): string[] {
+  if (refresh || shown.length === 0) return eligible.slice(0, count);
+  const kept = shown.filter((id) => eligible.includes(id));
+  return [...kept, ...eligible.filter((id) => !kept.includes(id))].slice(0, count);
+}
+
 export interface Resolution {
   ids: string[];
   unknown: string[];

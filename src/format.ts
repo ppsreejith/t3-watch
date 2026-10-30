@@ -286,33 +286,14 @@ export function stepDetail(item: TurnItem): Block[] {
 
 const searchCache = new WeakMap<TurnItem, string>();
 
-/** All text a search should find in an item, including collapsed detail. */
+/**
+ * Text a search should find in an item: exactly what the item shows once fully opened, so every
+ * hit that is counted can also be shown (folded detail included, off-screen raw output not).
+ */
 export function itemSearchText(item: TurnItem): string {
   let text = searchCache.get(item);
   if (text === undefined) {
-    const failure = item.failure as Record<string, unknown> | undefined;
-    text = [
-      item.text,
-      item.input,
-      item.output,
-      item.toolName,
-      item.fileName,
-      item.pattern,
-      item.patterns,
-      item.prompt,
-      item.result,
-      item.progress,
-      item.message,
-      item.markdown,
-      item.diffStr,
-      item.title,
-      failure?.message,
-      item.questions,
-      item.steps,
-    ]
-      .map((v) => sanitize(str(v)))
-      .filter(Boolean)
-      .join("\n");
+    text = (isMessage(item) ? messageBlocks(item) : stepDetail(item)).map((b) => `${b.prefix}${b.text}`).join("\n");
     searchCache.set(item, text);
   }
   return text;

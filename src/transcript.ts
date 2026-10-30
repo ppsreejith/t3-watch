@@ -265,8 +265,8 @@ export function findMatches(state: ThreadState, query: SearchQuery): TurnItem[] 
 export type Revealed = Array<Pick<Entry, "key" | "kind">>;
 
 /**
- * Unfolds whatever hides `item` (its group, a folded message, a step's detail when the match is
- * not in its summary). Returns what it opened so `foldBack` can close exactly that again.
+ * Unfolds whatever hides `item` (its group, a folded message, a step's one-line summary, which
+ * may cut hits off at the column edge). Returns what it opened so `foldBack` can close it again.
  */
 export function revealItem(transcript: Transcript, state: ThreadState, item: TurnItem, query: SearchQuery): Revealed {
   const opened: Revealed = [];
@@ -279,8 +279,7 @@ export function revealItem(transcript: Transcript, state: ThreadState, item: Tur
   }
   const group = structure(state.sorted()).find((e) => e.kind === "group" && e.steps!.some((s) => s.id === item.id));
   if (group) open(group);
-  const summary = stepSummary(item);
-  if (!contains(query, `${summary.prefix}${summary.text}`)) open({ key: item.id, kind: "step" });
+  open({ key: item.id, kind: "step" });
   return opened;
 }
 
@@ -289,9 +288,35 @@ export function foldBack(transcript: Transcript, revealed: Revealed): void {
   for (const entry of revealed) transcript.setExpanded(entry, false);
 }
 
-/** Row of entry `i` holding the first visible occurrence of the query. */
-export function matchRow(layout: Layout, i: number, query: SearchQuery): number {
-  if (i < 0) return 0;
-  for (let row = layout.start[i]; row < layout.end[i]; row++) if (contains(query, layout.rows[row].text)) return row;
-  return layout.start[i];
+/** A visible hit: layout row and character offset in that row's text. */
+export interface Occurrence {
+  row: number;
+  at: number;
+}
+
+/** Character offsets of every hit in `text`, matched the same way the highlighter paints them. */
+export function hitOffsets(text: string, query: SearchQuery): number[] {
+  if (!query.text) return [];
+  const haystack = query.caseSensitive ? text : text.toLowerCase();
+  // Lower-casing changed the length (rare Unicode): offsets would be wrong, so report none.
+  if (haystack.length !== text.length) return [];
+  const needle = query.caseSensitive ? query.text : query.text.toLowerCase();
+  const offsets: number[] = [];
+  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + needle.length)) offsets.push(at);
+  return offsets;
+}
+
+/** Every visible hit inside entry `i`, top to bottom. */
+export function occurrences(layout: Layout, i: number, query: SearchQuery): Occurrence[] {
+  if (i < 0 || i >= layout.entries.length) return [];
+  const out: Occurrence[] = [];
+  for (let row = layout.start[i]; row < layout.end[i]; row++) {
+    for (const at of hitOffsets(layout.rows[row].text, query)) out.push({ row, at });
+  }
+  return out;
+}
+
+/** Number of hits in an item's searchable text; used for the n/total counter. */
+export function countHits(item: TurnItem, query: SearchQuery): number {
+  return Math.max(1, hitOffsets(itemSearchText(item), query).length);
 }
