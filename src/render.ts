@@ -27,9 +27,9 @@ export const PAINT: Record<string, string> = {
   border: fg(240),
   selected: `\x1b[1m${fg(231)}`,
   marker: `\x1b[1m${fg(75)}`,
-  // Other hits are underlined; the current one (what n/N step from) is solid.
-  match: `\x1b[4;38;5;221m`,
-  matchCurrent: `\x1b[1;30;48;5;208m`,
+  // Every hit is yellow; the current one (what n/N step from) is bold white on red.
+  match: `\x1b[30;48;5;221m`,
+  matchCurrent: `\x1b[1;97;48;5;161m`,
   cursor: "\x1b[7m",
 };
 
