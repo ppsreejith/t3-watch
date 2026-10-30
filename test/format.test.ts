@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatDuration, layoutBlocks, messageBlocks, stepDetail, stepSummary, threadActivity, threadStatus, usageBar, usageLines } from "../src/format.js";
+import { formatDuration, layoutBlocks, reasoningRows, stripMarkdown, messageBlocks, stepDetail, stepSummary, threadActivity, threadStatus, usageBar, usageLines } from "../src/format.js";
 import { ThreadState } from "../src/store.js";
 import { highlight } from "../src/render.js";
 import { makeQuery } from "../src/transcript.js";
@@ -90,4 +90,14 @@ test("search highlighting", () => {
   assert.deepEqual(highlight([["see fo", "plain"], ["obar", "strong"]], makeQuery("foob")), [["see ", "plain"], ["foob", "match"], ["ar", "strong"]]);
   assert.deepEqual(highlight([["İstanbul foo", "plain"]], makeQuery("foo")), [["İstanbul foo", "plain"]], "no misplaced highlight");
   assert.equal(sanitize("ok\x9b31m"), "ok31m", "C1 controls are stripped");
+});
+
+test("thinking: folded line drops Markdown markers, opened thinking renders it", () => {
+  assert.equal(stripMarkdown("**Researching five harnesses** with `rg` and [docs](https://x.dev) for *each*"), "Researching five harnesses with rg and docs for each");
+  assert.equal(stripMarkdown("keep snake_case_names and 2*3*4"), "keep snake_case_names and 2*3*4");
+  const thinking = { id: "r", ordinal: 1, type: "reasoning", text: "**Researching five harnesses**\n\nThen check `rg`." };
+  assert.equal(stepSummary(thinking).text, "Researching five harnesses Then check rg.");
+  const rows = reasoningRows(thinking, 60);
+  assert.deepEqual(rows.map((r) => r.text), ["∴ Researching five harnesses", "  ", "  Then check rg."]);
+  assert.equal(rows[0].parts![1][1], "strong+reasoning");
 });

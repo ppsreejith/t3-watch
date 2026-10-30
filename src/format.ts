@@ -54,6 +54,16 @@ const firstLine = (text: string): string => {
 /** Server-provided labels (titles, branches, errors) are untrusted: one safe line. */
 export const label = (value: unknown, max = 300): string => oneLine(sanitize(str(value)), max);
 
+/** Drops inline Markdown markers (bold, italic, code, links, heading hashes) for one-line summaries. */
+export const stripMarkdown = (text: string): string =>
+  text
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*|__)(.+?)\1/g, "$2")
+    .replace(/(^|[^\w*])\*([^*\n]+)\*(?![\w*])/g, "$1$2")
+    .replace(/(^|[^\w_])_([^_\n]+)_(?![\w_])/g, "$1$2")
+    .replace(/`([^`\n]*)`/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "");
+
 export const oneLine = (text: string, max = 240): string => {
   const collapsed = text.replace(/\s+/g, " ").trim();
   return collapsed.length > max ? `${collapsed.slice(0, max - 1)}…` : collapsed;
@@ -205,7 +215,7 @@ export function stepSummary(item: TurnItem): Block {
   const text = typeof item.text === "string" ? sanitize(item.text.slice(0, 2000)) : "";
   switch (item.type) {
     case "reasoning":
-      return { prefix: "∴ ", text: (oneLine(text, 300) || "Thinking…") + (item.streaming ? " ▍" : ""), style: "reasoning" };
+      return { prefix: "∴ ", text: (oneLine(stripMarkdown(text), 300) || "Thinking…") + (item.streaming ? " ▍" : ""), style: "reasoning" };
     case "command_execution": {
       const input = sanitize(str(item.input));
       const label = input.trim() ? `$ ${firstLine(input)}` : (item.title ?? "command");
@@ -298,6 +308,8 @@ export function itemSearchText(item: TurnItem): string {
   if (text === undefined) {
     text = MARKDOWN_TYPES.has(item.type)
       ? messageRows(item, 10_000).map((r) => r.text).join("\n")
+      : item.type === "reasoning"
+      ? reasoningRows(item, 10_000).map((r) => r.text).join("\n")
       : (isMessage(item) ? messageBlocks(item) : stepDetail(item)).map((b) => `${b.prefix}${b.text}`).join("\n");
     searchCache.set(item, text);
   }
@@ -311,6 +323,24 @@ const markdownRows = (source: string, width: number, pad = ""): Row[] =>
     const spans: Span[] = pad ? [[pad, "assistant"], ...parts] : parts;
     return { text: spans.map((s) => s[0]).join(""), style: "assistant", parts: spans };
   });
+
+/** Opened thinking: Markdown in the dimmed thinking style, "∴ " on the first row. */
+export function reasoningRows(item: TurnItem, width: number, pad = ""): Row[] {
+  const lead = textWidth(pad) + 2;
+  const lines = renderMarkdown(clip(sanitize(str(item.text)).trim(), MAX_TEXT_CHARS) || "Thinking…", width - lead);
+  const rows = lines.map((parts, i): Row => {
+    const spans: Span[] = [
+      [`${pad}${i === 0 ? "∴ " : "  "}`, "reasoning"],
+      ...parts.map(([t, s]): Span => [t, s === "assistant" ? "reasoning" : `${s}+reasoning`]),
+    ];
+    return { text: spans.map((s) => s[0]).join(""), style: "reasoning", parts: spans };
+  });
+  if (item.streaming && rows.length > 0) {
+    const last = rows[rows.length - 1];
+    rows[rows.length - 1] = { ...last, text: `${last.text} ▍`, parts: [...(last.parts ?? []), [" ▍", "reasoning"]] };
+  }
+  return rows;
+}
 
 /** Rows for a conversation-level item; agent replies and plans are rendered as Markdown. */
 export function messageRows(item: TurnItem, width: number): Row[] {

@@ -5,6 +5,7 @@ import {
   itemSearchText,
   layoutBlocks,
   messageRows,
+  reasoningRows,
   stepDetail,
   stepFailed,
   stepKind,
@@ -159,7 +160,9 @@ export class Transcript {
     const expanded = this.isExpanded({ key: item.id, kind: "step" });
     if (!expanded) return this.cachedRows(item, `${pad}|summary`, seen, () => [summaryRow(item, pad)]);
     return this.cachedRows(item, `${width}|${pad}|detail`, seen, () =>
-      layoutBlocks(pad ? indent(stepDetail(item)) : stepDetail(item), width),
+      item.type === "reasoning"
+        ? reasoningRows(item, width, pad)
+        : layoutBlocks(pad ? indent(stepDetail(item)) : stepDetail(item), width),
     );
   }
 
