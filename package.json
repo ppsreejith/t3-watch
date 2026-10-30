@@ -1,0 +1,50 @@
+{
+  "name": "t3-watch",
+  "version": "0.1.0",
+  "description": "Read-only terminal dashboard for watching live T3 Code conversations (Claude Code and Codex) side by side.",
+  "keywords": [
+    "t3code",
+    "t3",
+    "claude-code",
+    "codex",
+    "tui",
+    "terminal",
+    "dashboard"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ppsreejith/t3-watch.git"
+  },
+  "homepage": "https://github.com/ppsreejith/t3-watch#readme",
+  "bugs": "https://github.com/ppsreejith/t3-watch/issues",
+  "license": "MIT",
+  "author": "Sreejith",
+  "type": "module",
+  "bin": {
+    "t3-watch": "bin/t3-watch.js"
+  },
+  "files": [
+    "bin",
+    "dist/src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "tsc -p . && node --test dist/test/*.test.js",
+    "prepare": "tsc -p ."
+  },
+  "dependencies": {
+    "string-width": "^8.3.0",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/ws": "^8.18.2",
+    "typescript": "^7.0.2"
+  }
+}
