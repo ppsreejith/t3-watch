@@ -27,7 +27,9 @@ export const PAINT: Record<string, string> = {
   border: fg(240),
   selected: `\x1b[1m${fg(231)}`,
   marker: `\x1b[1m${fg(75)}`,
-  match: `\x1b[30;48;5;221m`,
+  // Other hits are underlined; the current one (what n/N step from) is solid.
+  match: `\x1b[4;38;5;221m`,
+  matchCurrent: `\x1b[1;30;48;5;208m`,
   cursor: "\x1b[7m",
 };
 
@@ -63,8 +65,8 @@ export function cell(parts: Part[], width: number): string {
 /** One cell of left padding inside every pane. */
 export const padded = (parts: Part[], width: number): string => (width <= 0 ? "" : ` ${cell(parts, width - 1)}`);
 
-/** Splits a row so search hits are painted as matches. */
-export function highlight(text: string, style: string, query: SearchQuery | undefined): Part[] {
+/** Splits a row so search hits are painted as matches; `current` marks the first hit as the active one. */
+export function highlight(text: string, style: string, query: SearchQuery | undefined, current = false): Part[] {
   if (!query?.text) return [[text, style]];
   const haystack = query.caseSensitive ? text : text.toLowerCase();
   if (haystack.length !== text.length) return [[text, style]];
@@ -73,7 +75,7 @@ export function highlight(text: string, style: string, query: SearchQuery | unde
   let from = 0;
   for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + needle.length)) {
     if (at > from) parts.push([text.slice(from, at), style]);
-    parts.push([text.slice(at, at + needle.length), "match"]);
+    parts.push([text.slice(at, at + needle.length), current && parts.every((p) => p[1] !== "matchCurrent") ? "matchCurrent" : "match"]);
     from = at + needle.length;
   }
   if (from < text.length) parts.push([text.slice(from), style]);

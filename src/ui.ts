@@ -778,7 +778,11 @@ export class Dashboard {
       column.height = bodyHeight;
       const { layout, top, focus } = this.view(column);
       if (!column.stick) column.top = top;
-      const query = this.search?.column === column && this.search.query ? makeQuery(this.search.query) : undefined;
+      const search = this.search?.column === column && this.search.query ? this.search : undefined;
+      const query = search ? makeQuery(search.query) : undefined;
+      // The active match is the first hit inside the entry n/N last jumped to.
+      const currentEntry = search?.current === undefined ? undefined : layout.index.get(search.current);
+      const currentRow = currentEntry === undefined || !query ? -1 : matchRow(layout, currentEntry, query);
       const body: string[] = [];
       for (let i = 0; i < bodyHeight; i++) {
         const row = layout.rows[top + i];
@@ -787,7 +791,8 @@ export class Dashboard {
           continue;
         }
         const focused = isSelected && row.entry >= 0 && row.entry === focus;
-        body.push(`${focused ? paint("▎", "marker") : " "}${cell(highlight(row.text, row.style, query), w - 1)}`);
+        const parts = highlight(row.text, row.style, query, top + i === currentRow);
+        body.push(`${focused ? paint("▎", "marker") : " "}${cell(parts, w - 1)}`);
       }
       bodies.push(body);
 
