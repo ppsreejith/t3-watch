@@ -4,8 +4,7 @@ Watch several live [T3 Code](https://t3.codes) conversations side by side in you
 Claude Code and Codex, streaming as they work, with your Claude and Codex usage limits on the
 right. Strictly read-only.
 
-<!-- TODO: replace with a real screenshot (docs/screenshot.png) -->
-> 📸 _Screenshot coming soon._
+![t3-watch showing a Claude Code and a Codex conversation side by side, with the usage column on the right](docs/screenshot.png)
 
 ## Requirements
 
@@ -13,6 +12,12 @@ right. Strictly read-only.
 - Node.js 22+
 
 ## Install
+
+The easiest way is to ask your coding agent (Claude Code, Codex, …) to do it:
+
+> Install https://github.com/ppsreejith/t3-watch and make the `t3-watch` command available.
+
+Or install it yourself:
 
 ```bash
 git clone https://github.com/ppsreejith/t3-watch.git
