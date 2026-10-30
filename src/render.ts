@@ -31,6 +31,7 @@ export const PAINT: Record<string, string> = {
   match: `\x1b[30;48;5;221m`,
   matchCurrent: `\x1b[1;97;48;5;161m`,
   cursor: "\x1b[7m",
+  activeBorder: `\x1b[1m${fg(75)}`,
   // Markdown
   h1: `\x1b[1;4m${fg(183)}`,
   h2: `\x1b[1m${fg(183)}`,
@@ -77,6 +78,12 @@ export function cell(parts: Part[], width: number): string {
   }
   return out + " ".repeat(Math.max(0, width - used));
 }
+
+export const ACTIVE_BACKGROUND = "\x1b[48;5;24m";
+
+/** Re-applies a background across an already painted cell (each part ends with a reset). */
+export const withBackground = (painted: string, background: string): string =>
+  `${background}${painted.replaceAll(RESET, `${RESET}${background}`)}${RESET}`;
 
 /** One cell of left padding inside every pane. */
 export const padded = (parts: Part[], width: number): string => (width <= 0 ? "" : ` ${cell(parts, width - 1)}`);

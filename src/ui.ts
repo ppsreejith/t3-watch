@@ -3,7 +3,7 @@ import type { ConnectionState, RpcClient } from "./rpc.js";
 import { ProvidersState, ShellState, ThreadState } from "./store.js";
 import { label, lastActive, providerLabel, threadActivity, threadStatus, usageLines, type UsageLine } from "./format.js";
 import { isSettled, isSubagent, listThreads, pickThreads, recentColumns, resolveThreadIds, shortId } from "./select.js";
-import { RESET, PAINT, cell, highlight, padded, paint, type Part } from "./render.js";
+import { ACTIVE_BACKGROUND, RESET, PAINT, cell, highlight, padded, paint, withBackground, type Part } from "./render.js";
 import {
   Transcript,
   entryAt,
@@ -863,16 +863,24 @@ export class Dashboard {
       footers.push(padded([[this.providers.loaded ? "as reported by T3" : "waiting for T3…", "dim"]], usageWidth));
     }
 
-    const border = (left: string, mid: string, right: string) =>
-      paint(left + paneWidths.map((w) => "─".repeat(w)).join(mid) + right, "border");
+    // The selected column's header gets a tinted background and a bright frame.
+    const active = this.columns.length > 0 ? this.selected - this.offset : -1;
+    if (active >= 0 && active < visible) {
+      titles[active] = withBackground(titles[active], ACTIVE_BACKGROUND);
+      statuses[active] = withBackground(statuses[active], ACTIVE_BACKGROUND);
+    }
+    const border = (left: string, mid: string, right: string, highlight = false) =>
+      paint(left, "border") +
+      paneWidths.map((w, i) => paint("─".repeat(w), highlight && i === active ? "activeBorder" : "border")).join(paint(mid, "border")) +
+      paint(right, "border");
     const bar = paint("│", "border");
     const join = (cells: string[]) => bar + cells.join(bar) + bar;
 
     const lines: string[] = [];
-    lines.push(border("┌", "┬", "┐"));
+    lines.push(border("┌", "┬", "┐", true));
     lines.push(join(titles));
     lines.push(join(statuses));
-    lines.push(border("├", "┼", "┤"));
+    lines.push(border("├", "┼", "┤", true));
     for (let i = 0; i < bodyHeight; i++) lines.push(join(bodies.map((b) => b[i])));
     lines.push(border("├", "┼", "┤"));
     lines.push(join(footers));
